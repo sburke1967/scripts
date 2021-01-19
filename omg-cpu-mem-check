@@ -1,0 +1,56 @@
+#!/bin/bash
+###
+### Usage: ./omg-cpu-mem-check 02831260/0050-registry-redhat-io-ocs4-ocs-must-gather-rhel8-sha256-3b6e4a5ef4f5d7d4337914aea48c763ff880b69bfc7d38c58f89df971bb5ae08.tar.gz
+###
+
+CPU_ALLTOTAL=0
+CPU_CAPTOTAL=0
+RAM_ALLTOTAL=0
+NODE_DIR=`ls -R $1 |grep "core/nodes" | tr -d ":"`
+OMG_DIR=`echo $1 | cut -d'/' -f -3`
+omg use $OMG_DIR
+omg get pods --all-namespaces -o wide>all-pods.out
+NODE_COUNT=`omg get nodes|wc -l`
+clear
+for i in $NODE_DIR/*
+do
+	TEMP_HOST=`echo $i | awk -F "/" '{print $NF}'`
+	HOST=${TEMP_HOST%.yaml}
+	HOST_ROLE=`grep "f:node-role" $i | awk -F"/" '{ print $2 }' | awk -F":" '{ print $1 }'`
+	POD_COUNT=`grep $HOST all-pods.out|wc -l`
+	CPU_CAP=`grep -A1 capacity $i|grep cpu | awk -F":" '{print $2}' | tr -d '"'`
+	RAM_CAP=`expr $(grep -A5 capacity $i|grep memory | tail -1 | awk -F":" '{print $2}' | awk -F"Ki" '{print $1}') / 1000000` 
+	CPU_CAPTOTAL=`expr $CPU_CAPTOTAL + $CPU_CAP`
+	RAM_CAPTOTAL=`expr $RAM_CAPTOTAL + $RAM_CAP`
+	CPU_ALL=`echo "scale=1; $(grep -A1 allocatable $i|grep cpu | awk -F":" '{print $2}' | tr -d 'm') / 1000" | bc`
+	RAM_ALL=`expr $(grep -A5 allocatable $i|grep memory | tail -1 | awk -F":" '{print $2}' | awk -F"Ki" '{print $1}') / 1000000` 
+	echo $HOST is a $HOST_ROLE running $POD_COUNT pods with a capacity of $CPU_CAP cpus and $RAM_CAP GB of memory and an allocatable capacity of $CPU_ALL cpus and $RAM_ALL GB of memory
+	CPU_ALLTOTAL=`echo "scale=1; $CPU_ALLTOTAL + $CPU_ALL" | bc`
+	RAM_ALLTOTAL=`expr $RAM_ALLTOTAL + $RAM_ALL`
+	POD_COUNT_TOTAL=`expr $POD_COUNT_TOTAL + $POD_COUNT`
+done
+echo
+echo The cluster has $NODE_COUNT nodes, running $POD_COUNT_TOTAL pods and has a total capacity of $CPU_CAPTOTAL cpus and $RAM_CAPTOTAL GB of memory
+echo
+echo The cluster has a total allocatable of $CPU_ALLTOTAL cpus and $RAM_ALLTOTAL GB of memory
+echo
+
+
+#  allocatable:
+#    cpu: 3500m
+#    ephemeral-storage: "46735957528"
+#    hugepages-1Gi: "0"
+#    hugepages-2Mi: "0"
+#    memory: 15268156Ki
+#    pods: "250"
+
+
+
+#  capacity:
+#    cpu: "4"
+#    ephemeral-storage: 51876844Ki
+#    hugepages-1Gi: "0"
+#    hugepages-2Mi: "0"
+#    memory: 16419132Ki
+#    pods: "250"
+
